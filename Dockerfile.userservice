@@ -1,0 +1,50 @@
+# Dockerfile.userservice
+
+# --- Build Stage ---
+# Use an official Go runtime as a parent image, choosing a specific version
+FROM golang:1.21-alpine AS builder
+
+# Set the Current Working Directory inside the container
+WORKDIR /app
+
+# Copy go.mod and go.sum files to leverage Docker cache
+COPY go.mod go.sum ./
+
+# Download all dependencies. Dependencies will be cached if the go.mod and go.sum files are not changed
+RUN go mod download
+RUN go mod verify
+
+# Copy the source code into the container
+COPY . .
+
+# Build the Go application
+# CGO_ENABLED=0 is important for building a statically linked binary, especially for Alpine.
+# -o specifies the output file name.
+RUN CGO_ENABLED=0 GOOS=linux go build -v -ldflags="-s -w" -o /app/userservice_server ./cmd/userservice/main.go
+
+
+# --- Final Stage ---
+# Use a minimal base image for a small footprint
+FROM alpine:latest
+
+# Set the Current Working Directory inside the container
+WORKDIR /app
+
+# Copy only the compiled binary from the builder stage
+COPY --from=builder /app/userservice_server .
+
+# Expose the ports the application runs on (HTTP and gRPC)
+# These are informational for `docker run -P` and documentation.
+# Actual port mapping is done in docker-compose.yml or with `docker run -p`.
+EXPOSE 8080
+EXPOSE 50051
+
+# Environment variables that the application will use.
+# These can be overridden by docker-compose.yml or `docker run -e`.
+# The values here are the defaults if not overridden.
+ENV HTTP_PORT=8080
+ENV GRPC_PORT=50051
+# DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_SSLMODE will be set by docker-compose
+
+# Command to run the executable when the container starts
+ENTRYPOINT ["./userservice_server"]

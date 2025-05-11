@@ -1,0 +1,75 @@
+// protos/order.proto
+syntax = "proto3";
+
+package order;
+
+option go_package = "microservices-project/protos/orderpb"; // Adjust to your go module path
+
+import "google/protobuf/timestamp.proto";
+
+// OrderItem message, part of an Order
+message OrderItem {
+  string product_id = 1;
+  int32 quantity = 2;
+  double price_at_purchase = 3; // Price of the item when the order was placed
+}
+
+// Order message
+message Order {
+  string id = 1;
+  string user_id = 2;
+  repeated OrderItem items = 3;
+  double total_amount = 4;
+  string status = 5; // e.g., PENDING, PROCESSING, COMPLETED, CANCELLED
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+// Requests & Responses for CreateOrder
+message CreateOrderRequest {
+  string user_id = 1;
+  repeated OrderItem items = 2; // Client sends product_id and quantity
+                                // Price_at_purchase will be fetched by OrderService
+}
+
+message CreateOrderResponse {
+  Order order = 1;
+}
+
+// Requests & Responses for GetOrder
+message GetOrderRequest {
+  string order_id = 1;
+}
+
+message GetOrderResponse {
+  Order order = 1;
+}
+
+// Requests & Responses for ListUserOrders
+message ListUserOrdersRequest {
+  string user_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListUserOrdersResponse {
+  repeated Order orders = 1;
+  string next_page_token = 2;
+}
+
+// (Optional) UpdateOrderStatus - if needed
+// message UpdateOrderStatusRequest {
+//   string order_id = 1;
+//   string new_status = 2;
+// }
+// message UpdateOrderStatusResponse {
+//   Order order = 1;
+// }
+
+// OrderService definition
+service OrderService {
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
+  rpc ListUserOrders(ListUserOrdersRequest) returns (ListUserOrdersResponse);
+  // rpc UpdateOrderStatus(UpdateOrderStatusRequest) returns (UpdateOrderStatusResponse);
+}

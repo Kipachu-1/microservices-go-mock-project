@@ -1,0 +1,57 @@
+// protos/user.proto
+syntax = "proto3";
+
+package user;
+
+option go_package = "microservices-project/protos/userpb"; // Adjust to your go module path
+
+import "google/protobuf/timestamp.proto";
+
+// User message
+message User {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+  // Password is not sent over gRPC for GetUser
+}
+
+// Requests & Responses for CreateUser
+message CreateUserRequest {
+  string username = 1;
+  string email = 2;
+  string password = 3;
+}
+
+message CreateUserResponse {
+  User user = 1;
+}
+
+// Requests & Responses for GetUser
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+// Requests & Responses for Login (Placeholder for now)
+message LoginRequest {
+    string email = 1;
+    string password = 2;
+}
+
+message LoginResponse {
+    string token = 1; // e.g., JWT
+    User user = 2;
+}
+
+
+// UserService definition
+service UserService {
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc LoginUser(LoginRequest) returns (LoginResponse); // Add later
+}

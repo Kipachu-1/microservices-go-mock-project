@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:14-alpine # Using alpine for smaller image
+    container_name: microservices_postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-user} # Use host env var or default to 'user'
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-microservices_db}
+    ports:
+      - "${DB_PORT_HOST:-5432}:5432" # Map host port to container's 5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql # Optional: run init SQL on startup
+    restart: unless-stopped
+    healthcheck: # Optional healthcheck for postgres
+        test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-user} -d ${DB_NAME:-microservices_db}"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+
+  userservice:
+    build:
+      context: .
+      dockerfile: Dockerfile.userservice
+    container_name: microservices_userservice
+    ports:
+      - "${USER_HTTP_PORT:-8081}:8080"   # Map host 8081 to container 8080 (internal HTTP)
+      - "${USER_GRPC_PORT:-50051}:50051" # Map host 50051 to container 50051 (internal gRPC)
+    environment:
+      DB_HOST: postgres # Service name of the postgres container
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-user}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-microservices_db}
+      DB_SSLMODE: ${DB_SSLMODE:-disable}
+      HTTP_PORT: 8080  # Port inside the container
+      GRPC_PORT: 50051 # Port inside the container
+    depends_on:
+      postgres:
+        condition: service_healthy # Wait for postgres to be healthy (if healthcheck is defined)
+    restart: unless-stopped
+
+  productservice:
+    build:
+      context: .
+      dockerfile: Dockerfile.productservice
+    container_name: microservices_productservice
+    ports:
+      - "${PRODUCT_HTTP_PORT:-8082}:8080"
+      - "${PRODUCT_GRPC_PORT:-50052}:50052"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-user}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-microservices_db}
+      DB_SSLMODE: ${DB_SSLMODE:-disable}
+      HTTP_PORT: 8080
+      GRPC_PORT: 50052
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  orderservice:
+    build:
+      context: .
+      dockerfile: Dockerfile.orderservice
+    container_name: microservices_orderservice
+    ports:
+      - "${ORDER_HTTP_PORT:-8083}:8080"
+      - "${ORDER_GRPC_PORT:-50053}:50053"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-user}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-microservices_db}
+      DB_SSLMODE: ${DB_SSLMODE:-disable}
+      USER_SERVICE_GRPC_ADDR: userservice:50051   # Service discovery via Docker Compose DNS
+      PRODUCT_SERVICE_GRPC_ADDR: productservice:50052 # Service discovery
+      HTTP_PORT: 8080
+      GRPC_PORT: 50053
+    depends_on:
+      postgres:
+        condition: service_healthy
+      userservice: # Ensure user service is at least started (not necessarily healthy)
+        condition: service_started
+      productservice:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  postgres_data: # Persists PostgreSQL data across `docker-compose down/up`
